@@ -128,8 +128,27 @@ export async function listComplaints(
     filter.hostelId = query.hostelId;
   }
 
+  let finalFilter: Record<string, unknown> = filter;
+  if (query.overdue) {
+    const now = new Date();
+    finalFilter = {
+      $and: [
+        filter,
+        {
+          $or: [
+            { status: ComplaintStatus.OPEN, slaAcknowledgeDeadline: { $lt: now } },
+            {
+              status: { $nin: [ComplaintStatus.OPEN, ComplaintStatus.RESOLVED, ComplaintStatus.CLOSED] },
+              slaResolveDeadline: { $lt: now },
+            },
+          ],
+        },
+      ],
+    };
+  }
+
   const { items, total, page, limit } = await complaintRepository.findMany(
-    filter,
+    finalFilter,
     query.page,
     query.limit
   );

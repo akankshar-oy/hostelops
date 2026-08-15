@@ -2,6 +2,7 @@ import { Request, Response } from "express";
 import { AppError } from "../../utils/AppError";
 import { requireAuth } from "../../utils/requireAuth";
 import { requireParam } from "../../utils/requireParam";
+import { serializeComplaint, serializeComplaints } from "./complaint.presenter";
 import {
   addComment,
   assignComplaint,
@@ -17,7 +18,7 @@ import { listComplaintsQuerySchema } from "./complaint.validation";
 
 export async function createComplaintHandler(req: Request, res: Response): Promise<void> {
   const complaint = await createComplaint(requireAuth(req), req.body);
-  res.status(201).json({ complaint });
+  res.status(201).json({ complaint: serializeComplaint(complaint) });
 }
 
 export async function listComplaintsHandler(req: Request, res: Response): Promise<void> {
@@ -27,12 +28,15 @@ export async function listComplaintsHandler(req: Request, res: Response): Promis
   }
 
   const result = await listComplaints(requireAuth(req), parsedQuery.data);
-  res.status(200).json(result);
+  res.status(200).json({
+    complaints: serializeComplaints(result.complaints),
+    pagination: result.pagination,
+  });
 }
 
 export async function getComplaintHandler(req: Request, res: Response): Promise<void> {
   const complaint = await getComplaintById(requireAuth(req), requireParam(req.params.id, "id"));
-  res.status(200).json({ complaint });
+  res.status(200).json({ complaint: serializeComplaint(complaint) });
 }
 
 export async function addCommentHandler(req: Request, res: Response): Promise<void> {
@@ -56,7 +60,7 @@ export async function updateStatusHandler(req: Request, res: Response): Promise<
     requireParam(req.params.id, "id"),
     req.body
   );
-  res.status(200).json({ complaint });
+  res.status(200).json({ complaint: serializeComplaint(complaint) });
 }
 
 export async function rateComplaintHandler(req: Request, res: Response): Promise<void> {
@@ -65,10 +69,10 @@ export async function rateComplaintHandler(req: Request, res: Response): Promise
     requireParam(req.params.id, "id"),
     req.body.rating
   );
-  res.status(200).json({ complaint });
+  res.status(200).json({ complaint: serializeComplaint(complaint) });
 }
 
 export async function assignComplaintHandler(req: Request, res: Response): Promise<void> {
   const complaint = await assignComplaint(requireAuth(req), requireParam(req.params.id, "id"), req.body);
-  res.status(200).json({ complaint });
+  res.status(200).json({ complaint: serializeComplaint(complaint) });
 }
