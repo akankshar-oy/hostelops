@@ -32,11 +32,14 @@ export interface IComplaint {
   category: ComplaintCategory;
   priority: ComplaintPriority;
   hostelId: Types.ObjectId;
+  block?: string | null;
+  location?: string | null;
   studentId: Types.ObjectId;
   assignedDepartmentId?: Types.ObjectId | null;
   assignedStaffId?: Types.ObjectId | null;
   status: ComplaintStatus;
   images: string[];
+  incidentId?: Types.ObjectId | null;
   slaAcknowledgeDeadline: Date;
   slaResolveDeadline: Date;
   slaBreached: boolean;
@@ -59,11 +62,14 @@ const complaintSchema = new Schema<IComplaint>(
     category: { type: String, enum: Object.values(ComplaintCategory), required: true },
     priority: { type: String, enum: Object.values(ComplaintPriority), required: true },
     hostelId: { type: Schema.Types.ObjectId, ref: "Hostel", required: true },
+    block: { type: String, default: null },
+    location: { type: String, default: null },
     studentId: { type: Schema.Types.ObjectId, ref: "User", required: true },
     assignedDepartmentId: { type: Schema.Types.ObjectId, ref: "Department" },
     assignedStaffId: { type: Schema.Types.ObjectId, ref: "User" },
     status: { type: String, enum: Object.values(ComplaintStatus), required: true, default: ComplaintStatus.OPEN },
     images: { type: [String], default: [] },
+    incidentId: { type: Schema.Types.ObjectId, ref: "Incident", default: null },
     slaAcknowledgeDeadline: { type: Date, required: true },
     slaResolveDeadline: { type: Date, required: true },
     slaBreached: { type: Boolean, default: false },
@@ -81,5 +87,7 @@ complaintSchema.index({ hostelId: 1, status: 1 });
 complaintSchema.index({ assignedDepartmentId: 1, status: 1 });
 complaintSchema.index({ studentId: 1 });
 complaintSchema.index({ status: 1, slaResolveDeadline: 1 });
+complaintSchema.index({ category: 1, hostelId: 1, createdAt: -1 });
+complaintSchema.index({ incidentId: 1 });
 
 export const Complaint = model<IComplaint>("Complaint", complaintSchema);

@@ -14,6 +14,7 @@ export interface IUser {
   role: UserRole;
   hostelId?: Types.ObjectId;
   departmentId?: Types.ObjectId;
+  tokenVersion: number;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -28,6 +29,7 @@ const userSchema = new Schema<IUser>(
     role: { type: String, enum: Object.values(UserRole), required: true },
     hostelId: { type: Schema.Types.ObjectId, ref: "Hostel" },
     departmentId: { type: Schema.Types.ObjectId, ref: "Department" },
+    tokenVersion: { type: Number, default: 0 },
   },
   { timestamps: true }
 );
