@@ -1,8 +1,10 @@
 import { Request, Response } from "express";
 import { AppError } from "../../utils/AppError";
 import { requireAuth } from "../../utils/requireAuth";
+import { requireParam } from "../../utils/requireParam";
 import {
   addComment,
+  assignComplaint,
   createComplaint,
   getComplaintById,
   getComplaintHistory,
@@ -12,13 +14,6 @@ import {
   transitionComplaintStatus,
 } from "./complaint.service";
 import { listComplaintsQuerySchema } from "./complaint.validation";
-
-function requireParam(value: string | string[] | undefined, name: string): string {
-  if (typeof value !== "string" || value.length === 0) {
-    throw new AppError(400, `Missing route parameter: ${name}`);
-  }
-  return value;
-}
 
 export async function createComplaintHandler(req: Request, res: Response): Promise<void> {
   const complaint = await createComplaint(requireAuth(req), req.body);
@@ -70,5 +65,10 @@ export async function rateComplaintHandler(req: Request, res: Response): Promise
     requireParam(req.params.id, "id"),
     req.body.rating
   );
+  res.status(200).json({ complaint });
+}
+
+export async function assignComplaintHandler(req: Request, res: Response): Promise<void> {
+  const complaint = await assignComplaint(requireAuth(req), requireParam(req.params.id, "id"), req.body);
   res.status(200).json({ complaint });
 }

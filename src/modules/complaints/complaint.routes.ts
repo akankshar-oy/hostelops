@@ -5,6 +5,7 @@ import { validate } from "../../middleware/validate";
 import { UserRole } from "../users/user.model";
 import {
   addCommentHandler,
+  assignComplaintHandler,
   createComplaintHandler,
   getComplaintHandler,
   getComplaintHistoryHandler,
@@ -14,6 +15,7 @@ import {
   updateStatusHandler,
 } from "./complaint.controller";
 import {
+  assignComplaintSchema,
   createCommentSchema,
   createComplaintSchema,
   rateComplaintSchema,
@@ -32,5 +34,11 @@ router.post("/:id/comments", validate(createCommentSchema), addCommentHandler);
 router.get("/:id/comments", listCommentsHandler);
 router.patch("/:id/status", validate(updateStatusSchema), updateStatusHandler);
 router.patch("/:id/rating", validate(rateComplaintSchema), rateComplaintHandler);
+router.post(
+  "/:id/assign",
+  authorize(UserRole.WARDEN, UserRole.ADMIN),
+  validate(assignComplaintSchema),
+  assignComplaintHandler
+);
 
 export default router;

@@ -55,3 +55,11 @@ export const rateComplaintSchema = z.object({
 });
 
 export type RateComplaintInput = z.infer<typeof rateComplaintSchema>;
+
+export const assignComplaintSchema = z.object({
+  departmentId: z.string().min(1, "departmentId is required."),
+  staffId: z.string().min(1, "staffId is required."),
+  note: z.string().trim().max(1000).optional(),
+});
+
+export type AssignComplaintInput = z.infer<typeof assignComplaintSchema>;

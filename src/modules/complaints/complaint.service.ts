@@ -1,15 +1,20 @@
 import { Types } from "mongoose";
 import { AppError } from "../../utils/AppError";
 import { AccessTokenPayload } from "../../utils/jwt";
-import { Department } from "../departments/department.model";
-import { User, UserRole } from "../users/user.model";
+import { Department, DepartmentDocument } from "../departments/department.model";
+import { User, UserDocument, UserRole } from "../users/user.model";
 import { complaintRepository } from "./complaint.repository";
 import { ComplaintDocument, ComplaintStatus } from "./complaint.model";
 import { ComplaintComment, ComplaintCommentDocument } from "./complaintComment.model";
 import { ComplaintStatusHistory } from "./complaintStatusHistory.model";
 import { getTransitionRule } from "./complaint.stateMachine";
 import { resolveSLADeadlines } from "./sla.service";
-import { CreateComplaintInput, ListComplaintsQuery, UpdateStatusInput } from "./complaint.validation";
+import {
+  AssignComplaintInput,
+  CreateComplaintInput,
+  ListComplaintsQuery,
+  UpdateStatusInput,
+} from "./complaint.validation";
 
 export interface Pagination {
   total: number;
@@ -22,6 +27,32 @@ function assertHostelLinked(auth: AccessTokenPayload): asserts auth is AccessTok
   if (!auth.hostelId) {
     throw new AppError(400, "Your account is not linked to a hostel. Contact your warden.");
   }
+}
+
+async function validateAssignmentTarget(
+  departmentId: string,
+  staffId: string
+): Promise<{ department: DepartmentDocument; staff: UserDocument }> {
+  if (!Types.ObjectId.isValid(departmentId) || !Types.ObjectId.isValid(staffId)) {
+    throw new AppError(400, "Invalid department or staff id.");
+  }
+
+  const [department, staff] = await Promise.all([
+    Department.findById(departmentId),
+    User.findById(staffId),
+  ]);
+
+  if (!department) {
+    throw new AppError(400, "Invalid department selected.");
+  }
+  if (!staff || staff.role !== UserRole.STAFF) {
+    throw new AppError(400, "Invalid staff member selected.");
+  }
+  if (staff.departmentId?.toString() !== department._id.toString()) {
+    throw new AppError(400, "Selected staff member does not belong to the selected department.");
+  }
+
+  return { department, staff };
 }
 
 export async function createComplaint(
@@ -197,24 +228,8 @@ export async function transitionComplaintStatus(
     if (!assignedDepartmentId || !assignedStaffId) {
       throw new AppError(400, "assignedDepartmentId and assignedStaffId are required.");
     }
-    if (!Types.ObjectId.isValid(assignedDepartmentId) || !Types.ObjectId.isValid(assignedStaffId)) {
-      throw new AppError(400, "Invalid department or staff id.");
-    }
 
-    const [department, staff] = await Promise.all([
-      Department.findById(assignedDepartmentId),
-      User.findById(assignedStaffId),
-    ]);
-
-    if (!department) {
-      throw new AppError(400, "Invalid department selected.");
-    }
-    if (!staff || staff.role !== UserRole.STAFF) {
-      throw new AppError(400, "Invalid staff member selected.");
-    }
-    if (staff.departmentId?.toString() !== department._id.toString()) {
-      throw new AppError(400, "Selected staff member does not belong to the selected department.");
-    }
+    const { department, staff } = await validateAssignmentTarget(assignedDepartmentId, assignedStaffId);
 
     complaint.assignedDepartmentId = department._id;
     complaint.assignedStaffId = staff._id;
@@ -259,5 +274,64 @@ export async function rateComplaint(
 
   complaint.rating = rating;
   await complaint.save();
+  return complaint;
+}
+
+const REASSIGNABLE_STATUSES: ComplaintStatus[] = [
+  ComplaintStatus.ASSIGNED,
+  ComplaintStatus.IN_PROGRESS,
+  ComplaintStatus.REOPENED,
+];
+
+/**
+ * Route middleware already restricts this to WARDEN/ADMIN. If the complaint is
+ * still ACKNOWLEDGED, this performs the initial ACKNOWLEDGED->ASSIGNED transition
+ * (reusing the state machine). If it's already assigned/in progress/reopened,
+ * this reassigns department/staff without changing status.
+ */
+export async function assignComplaint(
+  auth: AccessTokenPayload,
+  complaintId: string,
+  input: AssignComplaintInput
+): Promise<ComplaintDocument> {
+  const complaint = await getComplaintById(auth, complaintId);
+
+  if (complaint.status === ComplaintStatus.ACKNOWLEDGED) {
+    return transitionComplaintStatus(auth, complaintId, {
+      toStatus: ComplaintStatus.ASSIGNED,
+      assignedDepartmentId: input.departmentId,
+      assignedStaffId: input.staffId,
+      note: input.note,
+    });
+  }
+
+  if (!REASSIGNABLE_STATUSES.includes(complaint.status)) {
+    throw new AppError(
+      400,
+      `Complaints in ${complaint.status} status cannot be assigned. Acknowledge the complaint first.`
+    );
+  }
+
+  if (auth.role !== UserRole.ADMIN && auth.hostelId !== complaint.hostelId.toString()) {
+    throw new AppError(403, "You can only manage complaints for your own hostel.");
+  }
+
+  const { department, staff } = await validateAssignmentTarget(input.departmentId, input.staffId);
+  const previousStaffId = complaint.assignedStaffId?.toString() ?? "unassigned";
+
+  complaint.assignedDepartmentId = department._id;
+  complaint.assignedStaffId = staff._id;
+  complaint.assignedAt = new Date();
+  await complaint.save();
+
+  await ComplaintStatusHistory.create({
+    complaintId: complaint._id,
+    fromStatus: complaint.status,
+    toStatus: complaint.status,
+    actorId: auth.sub,
+    actorRole: auth.role,
+    note: input.note ?? `Reassigned from staff ${previousStaffId} to ${staff._id.toString()}.`,
+  });
+
   return complaint;
 }
