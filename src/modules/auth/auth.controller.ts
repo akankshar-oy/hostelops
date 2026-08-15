@@ -1,13 +1,14 @@
 import { Request, Response } from "express";
 import { env } from "../../config/env";
 import { AppError } from "../../utils/AppError";
+import { requireAuth } from "../../utils/requireAuth";
 import { userRepository } from "../users/user.repository";
+import { sanitizeUser } from "../users/user.service";
 import {
   login,
   logout,
   refreshSession,
   registerStudent,
-  sanitizeUser,
 } from "./auth.service";
 
 const REFRESH_COOKIE_NAME = "hostelops_refresh";
@@ -56,7 +57,8 @@ export async function logoutHandler(req: Request, res: Response): Promise<void> 
 }
 
 export async function meHandler(req: Request, res: Response): Promise<void> {
-  const user = await userRepository.findById(req.auth!.sub);
+  const auth = requireAuth(req);
+  const user = await userRepository.findById(auth.sub);
   if (!user) {
     throw new AppError(401, "User no longer exists.");
   }

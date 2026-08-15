@@ -3,6 +3,7 @@ import { Types } from "mongoose";
 import { Hostel } from "../hostels/hostel.model";
 import { UserDocument, UserRole } from "../users/user.model";
 import { userRepository } from "../users/user.repository";
+import { sanitizeUser, SanitizedUser } from "../users/user.service";
 import { AppError } from "../../utils/AppError";
 import {
   signAccessToken,
@@ -13,30 +14,10 @@ import { LoginInput, RegisterInput } from "./auth.validation";
 
 const SALT_ROUNDS = 12;
 
-export interface SanitizedUser {
-  id: string;
-  name: string;
-  email: string;
-  role: UserRole;
-  hostelId: string | null;
-  departmentId: string | null;
-}
-
 export interface AuthResult {
   accessToken: string;
   refreshToken: string;
   user: SanitizedUser;
-}
-
-export function sanitizeUser(user: UserDocument): SanitizedUser {
-  return {
-    id: user._id.toString(),
-    name: user.name,
-    email: user.email,
-    role: user.role,
-    hostelId: user.hostelId ? user.hostelId.toString() : null,
-    departmentId: user.departmentId ? user.departmentId.toString() : null,
-  };
 }
 
 function issueTokens(user: UserDocument): AuthResult {
@@ -110,7 +91,12 @@ export async function refreshSession(refreshToken: string): Promise<AuthResult> 
     throw new AppError(401, "Invalid or expired refresh token.");
   }
 
-  return issueTokens(user);
+  const rotatedUser = await userRepository.incrementTokenVersion(user._id.toString());
+  if (!rotatedUser) {
+    throw new AppError(401, "Invalid or expired refresh token.");
+  }
+
+  return issueTokens(rotatedUser);
 }
 
 export async function logout(userId: string): Promise<void> {

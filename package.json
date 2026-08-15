@@ -9,7 +9,8 @@
     "build": "tsc",
     "start": "node dist/server.js",
     "start:worker": "node dist/worker.js",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "seed:admin": "tsx src/scripts/seedAdmin.ts"
   },
   "license": "ISC",
   "dependencies": {
@@ -17,9 +18,11 @@
     "cookie-parser": "^1.4.7",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
+    "express-rate-limit": "^8.6.2",
     "ioredis": "^6.0.0",
     "jsonwebtoken": "^9.0.3",
     "mongoose": "^8.24.3",
+    "rate-limit-redis": "^6.0.1",
     "zod": "^4.4.3"
   },
   "devDependencies": {

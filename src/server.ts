@@ -4,6 +4,8 @@ import { connectDB } from "./config/db";
 import { env } from "./config/env";
 import { errorHandler } from "./middleware/errorHandler";
 import authRoutes from "./modules/auth/auth.routes";
+import complaintRoutes from "./modules/complaints/complaint.routes";
+import userRoutes from "./modules/users/user.routes";
 
 async function main(): Promise<void> {
   await connectDB();
@@ -17,6 +19,8 @@ async function main(): Promise<void> {
   });
 
   app.use("/api/auth", authRoutes);
+  app.use("/api/complaints", complaintRoutes);
+  app.use("/api/users", userRoutes);
 
   app.use(errorHandler);
 
