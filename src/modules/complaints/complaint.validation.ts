@@ -30,3 +30,28 @@ export const createCommentSchema = z.object({
 });
 
 export type CreateCommentInput = z.infer<typeof createCommentSchema>;
+
+export const updateStatusSchema = z
+  .object({
+    toStatus: z.nativeEnum(ComplaintStatus),
+    note: z.string().trim().max(1000).optional(),
+    assignedDepartmentId: z.string().min(1).optional(),
+    assignedStaffId: z.string().min(1).optional(),
+  })
+  .refine(
+    (data) =>
+      data.toStatus !== ComplaintStatus.ASSIGNED ||
+      (!!data.assignedDepartmentId && !!data.assignedStaffId),
+    {
+      message: "assignedDepartmentId and assignedStaffId are required when transitioning to ASSIGNED.",
+      path: ["assignedStaffId"],
+    }
+  );
+
+export type UpdateStatusInput = z.infer<typeof updateStatusSchema>;
+
+export const rateComplaintSchema = z.object({
+  rating: z.coerce.number().int().min(1, "Rating must be between 1 and 5.").max(5, "Rating must be between 1 and 5."),
+});
+
+export type RateComplaintInput = z.infer<typeof rateComplaintSchema>;

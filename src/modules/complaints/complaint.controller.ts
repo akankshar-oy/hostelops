@@ -8,6 +8,8 @@ import {
   getComplaintHistory,
   listComments,
   listComplaints,
+  rateComplaint,
+  transitionComplaintStatus,
 } from "./complaint.service";
 import { listComplaintsQuerySchema } from "./complaint.validation";
 
@@ -51,4 +53,22 @@ export async function listCommentsHandler(req: Request, res: Response): Promise<
 export async function getComplaintHistoryHandler(req: Request, res: Response): Promise<void> {
   const history = await getComplaintHistory(requireAuth(req), requireParam(req.params.id, "id"));
   res.status(200).json({ history });
+}
+
+export async function updateStatusHandler(req: Request, res: Response): Promise<void> {
+  const complaint = await transitionComplaintStatus(
+    requireAuth(req),
+    requireParam(req.params.id, "id"),
+    req.body
+  );
+  res.status(200).json({ complaint });
+}
+
+export async function rateComplaintHandler(req: Request, res: Response): Promise<void> {
+  const complaint = await rateComplaint(
+    requireAuth(req),
+    requireParam(req.params.id, "id"),
+    req.body.rating
+  );
+  res.status(200).json({ complaint });
 }

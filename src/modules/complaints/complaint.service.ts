@@ -1,13 +1,15 @@
 import { Types } from "mongoose";
 import { AppError } from "../../utils/AppError";
 import { AccessTokenPayload } from "../../utils/jwt";
-import { UserRole } from "../users/user.model";
+import { Department } from "../departments/department.model";
+import { User, UserRole } from "../users/user.model";
 import { complaintRepository } from "./complaint.repository";
 import { ComplaintDocument, ComplaintStatus } from "./complaint.model";
 import { ComplaintComment, ComplaintCommentDocument } from "./complaintComment.model";
 import { ComplaintStatusHistory } from "./complaintStatusHistory.model";
+import { getTransitionRule } from "./complaint.stateMachine";
 import { resolveSLADeadlines } from "./sla.service";
-import { CreateComplaintInput, ListComplaintsQuery } from "./complaint.validation";
+import { CreateComplaintInput, ListComplaintsQuery, UpdateStatusInput } from "./complaint.validation";
 
 export interface Pagination {
   total: number;
@@ -157,4 +159,105 @@ export async function listComments(
 export async function getComplaintHistory(auth: AccessTokenPayload, complaintId: string) {
   const complaint = await getComplaintById(auth, complaintId);
   return ComplaintStatusHistory.find({ complaintId: complaint._id }).sort({ timestamp: 1 });
+}
+
+export async function transitionComplaintStatus(
+  auth: AccessTokenPayload,
+  complaintId: string,
+  input: UpdateStatusInput
+): Promise<ComplaintDocument> {
+  const complaint = await getComplaintById(auth, complaintId);
+
+  const rule = getTransitionRule(complaint.status, input.toStatus);
+  if (!rule) {
+    throw new AppError(
+      400,
+      `Cannot transition complaint from ${complaint.status} to ${input.toStatus}.`
+    );
+  }
+
+  const isAdmin = auth.role === UserRole.ADMIN;
+  if (!isAdmin) {
+    if (!rule.allowedRoles.includes(auth.role)) {
+      throw new AppError(403, "Your role cannot perform this transition.");
+    }
+    if (rule.requiresSameHostelWarden && auth.hostelId !== complaint.hostelId.toString()) {
+      throw new AppError(403, "You can only manage complaints for your own hostel.");
+    }
+    if (rule.requiresAssignedStaff && complaint.assignedStaffId?.toString() !== auth.sub) {
+      throw new AppError(403, "Only the assigned staff member can perform this transition.");
+    }
+    if (rule.requiresOwnerStudent && complaint.studentId.toString() !== auth.sub) {
+      throw new AppError(403, "Only the student who filed this complaint can perform this transition.");
+    }
+  }
+
+  if (input.toStatus === ComplaintStatus.ASSIGNED) {
+    const { assignedDepartmentId, assignedStaffId } = input;
+    if (!assignedDepartmentId || !assignedStaffId) {
+      throw new AppError(400, "assignedDepartmentId and assignedStaffId are required.");
+    }
+    if (!Types.ObjectId.isValid(assignedDepartmentId) || !Types.ObjectId.isValid(assignedStaffId)) {
+      throw new AppError(400, "Invalid department or staff id.");
+    }
+
+    const [department, staff] = await Promise.all([
+      Department.findById(assignedDepartmentId),
+      User.findById(assignedStaffId),
+    ]);
+
+    if (!department) {
+      throw new AppError(400, "Invalid department selected.");
+    }
+    if (!staff || staff.role !== UserRole.STAFF) {
+      throw new AppError(400, "Invalid staff member selected.");
+    }
+    if (staff.departmentId?.toString() !== department._id.toString()) {
+      throw new AppError(400, "Selected staff member does not belong to the selected department.");
+    }
+
+    complaint.assignedDepartmentId = department._id;
+    complaint.assignedStaffId = staff._id;
+    complaint.assignedAt = new Date();
+  }
+
+  const fromStatus = complaint.status;
+  complaint.status = input.toStatus;
+
+  const now = new Date();
+  if (input.toStatus === ComplaintStatus.ACKNOWLEDGED) complaint.acknowledgedAt = now;
+  if (input.toStatus === ComplaintStatus.RESOLVED) complaint.resolvedAt = now;
+  if (input.toStatus === ComplaintStatus.CLOSED) complaint.closedAt = now;
+
+  await complaint.save();
+
+  await ComplaintStatusHistory.create({
+    complaintId: complaint._id,
+    fromStatus,
+    toStatus: input.toStatus,
+    actorId: auth.sub,
+    actorRole: auth.role,
+    note: input.note,
+  });
+
+  return complaint;
+}
+
+export async function rateComplaint(
+  auth: AccessTokenPayload,
+  complaintId: string,
+  rating: number
+): Promise<ComplaintDocument> {
+  const complaint = await getComplaintById(auth, complaintId);
+
+  if (auth.role !== UserRole.ADMIN && complaint.studentId.toString() !== auth.sub) {
+    throw new AppError(403, "Only the student who filed this complaint can rate it.");
+  }
+  if (![ComplaintStatus.RESOLVED, ComplaintStatus.CLOSED].includes(complaint.status)) {
+    throw new AppError(400, "You can only rate a complaint after it has been resolved.");
+  }
+
+  complaint.rating = rating;
+  await complaint.save();
+  return complaint;
 }

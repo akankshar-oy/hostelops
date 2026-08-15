@@ -10,8 +10,15 @@ import {
   getComplaintHistoryHandler,
   listCommentsHandler,
   listComplaintsHandler,
+  rateComplaintHandler,
+  updateStatusHandler,
 } from "./complaint.controller";
-import { createCommentSchema, createComplaintSchema } from "./complaint.validation";
+import {
+  createCommentSchema,
+  createComplaintSchema,
+  rateComplaintSchema,
+  updateStatusSchema,
+} from "./complaint.validation";
 
 const router = Router();
 
@@ -23,5 +30,7 @@ router.get("/:id", getComplaintHandler);
 router.get("/:id/history", getComplaintHistoryHandler);
 router.post("/:id/comments", validate(createCommentSchema), addCommentHandler);
 router.get("/:id/comments", listCommentsHandler);
+router.patch("/:id/status", validate(updateStatusSchema), updateStatusHandler);
+router.patch("/:id/rating", validate(rateComplaintSchema), rateComplaintHandler);
 
 export default router;
