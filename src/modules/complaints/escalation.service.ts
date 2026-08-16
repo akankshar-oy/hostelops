@@ -1,6 +1,7 @@
 import { Types } from "mongoose";
 import { EscalationRule, EscalationTarget } from "../escalation/escalationRule.model";
 import { ComplaintCategory, ComplaintDocument, ComplaintPriority } from "./complaint.model";
+import { notifyComplaintEscalated } from "./complaintNotifier";
 import { ComplaintStatusHistory } from "./complaintStatusHistory.model";
 
 export interface ResolvedEscalationLevel {
@@ -99,4 +100,6 @@ export async function applyEscalation(
     actorRole,
     note: note ?? `Escalated to level ${target.level} (target: ${target.targetRole}).`,
   });
+
+  await notifyComplaintEscalated(complaint, target.targetRole);
 }

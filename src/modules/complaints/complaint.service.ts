@@ -7,6 +7,14 @@ import { complaintRepository } from "./complaint.repository";
 import { ComplaintDocument, ComplaintStatus } from "./complaint.model";
 import { ComplaintComment, ComplaintCommentDocument } from "./complaintComment.model";
 import { ComplaintStatusHistory } from "./complaintStatusHistory.model";
+import {
+  notifyComplaintAcknowledged,
+  notifyComplaintAssigned,
+  notifyComplaintReassigned,
+  notifyComplaintReopened,
+  notifyComplaintStatusChanged,
+  notifyComplaintSubmitted,
+} from "./complaintNotifier";
 import { getTransitionRule } from "./complaint.stateMachine";
 import { applyEscalation, resolveNextEscalationLevel } from "./escalation.service";
 import { resolveSLADeadlines } from "./sla.service";
@@ -93,6 +101,8 @@ export async function createComplaint(
     actorRole: UserRole.STUDENT,
     note: "Complaint submitted by student.",
   });
+
+  await notifyComplaintSubmitted(complaint);
 
   return complaint;
 }
@@ -276,6 +286,24 @@ export async function transitionComplaintStatus(
     note: input.note,
   });
 
+  switch (input.toStatus) {
+    case ComplaintStatus.ACKNOWLEDGED:
+      await notifyComplaintAcknowledged(complaint);
+      break;
+    case ComplaintStatus.ASSIGNED:
+      await notifyComplaintAssigned(complaint);
+      break;
+    case ComplaintStatus.IN_PROGRESS:
+    case ComplaintStatus.RESOLVED:
+      await notifyComplaintStatusChanged(complaint, fromStatus);
+      break;
+    case ComplaintStatus.REOPENED:
+      await notifyComplaintReopened(complaint);
+      break;
+    case ComplaintStatus.CLOSED:
+      break;
+  }
+
   return complaint;
 }
 
@@ -338,7 +366,7 @@ export async function assignComplaint(
   }
 
   const { department, staff } = await validateAssignmentTarget(input.departmentId, input.staffId);
-  const previousStaffId = complaint.assignedStaffId?.toString() ?? "unassigned";
+  const previousStaffId = complaint.assignedStaffId?.toString() ?? null;
 
   complaint.assignedDepartmentId = department._id;
   complaint.assignedStaffId = staff._id;
@@ -351,8 +379,10 @@ export async function assignComplaint(
     toStatus: complaint.status,
     actorId: auth.sub,
     actorRole: auth.role,
-    note: input.note ?? `Reassigned from staff ${previousStaffId} to ${staff._id.toString()}.`,
+    note: input.note ?? `Reassigned from staff ${previousStaffId ?? "unassigned"} to ${staff._id.toString()}.`,
   });
+
+  await notifyComplaintReassigned(complaint, previousStaffId);
 
   return complaint;
 }

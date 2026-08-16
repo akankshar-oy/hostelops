@@ -6,6 +6,7 @@ import { errorHandler } from "./middleware/errorHandler";
 import authRoutes from "./modules/auth/auth.routes";
 import complaintRoutes from "./modules/complaints/complaint.routes";
 import departmentRoutes from "./modules/departments/department.routes";
+import notificationRoutes from "./modules/notifications/notification.routes";
 import userRoutes from "./modules/users/user.routes";
 
 async function main(): Promise<void> {
@@ -22,6 +23,7 @@ async function main(): Promise<void> {
   app.use("/api/auth", authRoutes);
   app.use("/api/complaints", complaintRoutes);
   app.use("/api/departments", departmentRoutes);
+  app.use("/api/notifications", notificationRoutes);
   app.use("/api/users", userRoutes);
 
   app.use(errorHandler);
