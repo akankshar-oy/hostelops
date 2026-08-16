@@ -1,16 +1,19 @@
 import { connectDB } from "./config/db";
+import { scheduleEscalationSweep } from "./queues/escalationSweep.queue";
+import { escalationSweepWorker } from "./queues/escalationSweep.worker";
 import { scheduleSlaSweep } from "./queues/slaSweep.queue";
 import { slaSweepWorker } from "./queues/slaSweep.worker";
 
 async function main(): Promise<void> {
   await connectDB();
   await scheduleSlaSweep();
-  console.log("Worker started. SLA sweep scheduled to run every 60s.");
+  await scheduleEscalationSweep();
+  console.log("Worker started. SLA sweep and escalation sweep scheduled to run every 60s.");
 }
 
 async function shutdown(signal: string): Promise<void> {
   console.log(`${signal} received, shutting down worker...`);
-  await slaSweepWorker.close();
+  await Promise.all([slaSweepWorker.close(), escalationSweepWorker.close()]);
   process.exit(0);
 }
 

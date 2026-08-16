@@ -7,6 +7,7 @@ import {
   addCommentHandler,
   assignComplaintHandler,
   createComplaintHandler,
+  escalateComplaintHandler,
   getComplaintHandler,
   getComplaintHistoryHandler,
   listCommentsHandler,
@@ -18,6 +19,7 @@ import {
   assignComplaintSchema,
   createCommentSchema,
   createComplaintSchema,
+  escalateComplaintSchema,
   rateComplaintSchema,
   updateStatusSchema,
 } from "./complaint.validation";
@@ -39,6 +41,12 @@ router.post(
   authorize(UserRole.WARDEN, UserRole.ADMIN),
   validate(assignComplaintSchema),
   assignComplaintHandler
+);
+router.post(
+  "/:id/escalate",
+  authorize(UserRole.WARDEN, UserRole.ADMIN),
+  validate(escalateComplaintSchema),
+  escalateComplaintHandler
 );
 
 export default router;

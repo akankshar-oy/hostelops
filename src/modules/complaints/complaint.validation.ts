@@ -64,3 +64,9 @@ export const assignComplaintSchema = z.object({
 });
 
 export type AssignComplaintInput = z.infer<typeof assignComplaintSchema>;
+
+export const escalateComplaintSchema = z.object({
+  note: z.string().trim().max(1000).optional(),
+});
+
+export type EscalateComplaintInput = z.infer<typeof escalateComplaintSchema>;

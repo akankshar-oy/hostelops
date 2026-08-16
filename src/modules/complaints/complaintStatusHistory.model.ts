@@ -19,7 +19,7 @@ export interface IComplaintStatusHistory {
   complaintId: Types.ObjectId;
   fromStatus: string;
   toStatus: string;
-  actorId: Types.ObjectId;
+  actorId?: Types.ObjectId;
   actorRole: string;
   note?: string;
   timestamp: Date;
@@ -31,7 +31,7 @@ const complaintStatusHistorySchema = new Schema<IComplaintStatusHistory>({
   complaintId: { type: Schema.Types.ObjectId, ref: "Complaint", required: true, index: true },
   fromStatus: { type: String, required: true },
   toStatus: { type: String, required: true },
-  actorId: { type: Schema.Types.ObjectId, ref: "User", required: true },
+  actorId: { type: Schema.Types.ObjectId, ref: "User" },
   actorRole: { type: String, required: true },
   note: { type: String },
   timestamp: { type: Date, default: Date.now },

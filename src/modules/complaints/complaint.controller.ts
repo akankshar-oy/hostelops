@@ -7,6 +7,7 @@ import {
   addComment,
   assignComplaint,
   createComplaint,
+  escalateComplaintManually,
   getComplaintById,
   getComplaintHistory,
   listComments,
@@ -74,5 +75,14 @@ export async function rateComplaintHandler(req: Request, res: Response): Promise
 
 export async function assignComplaintHandler(req: Request, res: Response): Promise<void> {
   const complaint = await assignComplaint(requireAuth(req), requireParam(req.params.id, "id"), req.body);
+  res.status(200).json({ complaint: serializeComplaint(complaint) });
+}
+
+export async function escalateComplaintHandler(req: Request, res: Response): Promise<void> {
+  const complaint = await escalateComplaintManually(
+    requireAuth(req),
+    requireParam(req.params.id, "id"),
+    req.body
+  );
   res.status(200).json({ complaint: serializeComplaint(complaint) });
 }

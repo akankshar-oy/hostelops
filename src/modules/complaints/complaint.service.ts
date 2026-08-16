@@ -8,10 +8,12 @@ import { ComplaintDocument, ComplaintStatus } from "./complaint.model";
 import { ComplaintComment, ComplaintCommentDocument } from "./complaintComment.model";
 import { ComplaintStatusHistory } from "./complaintStatusHistory.model";
 import { getTransitionRule } from "./complaint.stateMachine";
+import { applyEscalation, resolveNextEscalationLevel } from "./escalation.service";
 import { resolveSLADeadlines } from "./sla.service";
 import {
   AssignComplaintInput,
   CreateComplaintInput,
+  EscalateComplaintInput,
   ListComplaintsQuery,
   UpdateStatusInput,
 } from "./complaint.validation";
@@ -351,6 +353,45 @@ export async function assignComplaint(
     actorRole: auth.role,
     note: input.note ?? `Reassigned from staff ${previousStaffId} to ${staff._id.toString()}.`,
   });
+
+  return complaint;
+}
+
+/**
+ * Route middleware restricts this to WARDEN/ADMIN. Unlike the automatic
+ * escalation sweep (which gates on elapsed time past deadline), a manual
+ * escalation just moves to the next configured level immediately.
+ */
+export async function escalateComplaintManually(
+  auth: AccessTokenPayload,
+  complaintId: string,
+  input: EscalateComplaintInput
+): Promise<ComplaintDocument> {
+  const complaint = await getComplaintById(auth, complaintId);
+
+  if (complaint.status === ComplaintStatus.RESOLVED || complaint.status === ComplaintStatus.CLOSED) {
+    throw new AppError(400, "Cannot escalate a resolved or closed complaint.");
+  }
+  if (auth.role !== UserRole.ADMIN && auth.hostelId !== complaint.hostelId.toString()) {
+    throw new AppError(403, "You can only manage complaints for your own hostel.");
+  }
+
+  const nextLevel = await resolveNextEscalationLevel(
+    complaint.category,
+    complaint.priority,
+    complaint.escalationLevel
+  );
+  if (!nextLevel) {
+    throw new AppError(400, "No further escalation level is configured for this complaint.");
+  }
+
+  await applyEscalation(
+    complaint,
+    nextLevel,
+    auth.sub,
+    auth.role,
+    input.note ?? `Manually escalated to level ${nextLevel.level} (target: ${nextLevel.targetRole}) by ${auth.role}.`
+  );
 
   return complaint;
 }
